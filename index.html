@@ -1,0 +1,1500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Sweet Quest</title>
+  <style>
+    /* ============================
+       Global / Reset / Accessibility
+       ============================ */
+    :root{
+      --pink:#FF6F91;
+      --muted:#6f6a6a;
+      --bg:#FFF7F9;
+      --card-shadow: 0 6px 16px rgba(255,111,145,0.18);
+      --restart-red: #ffb6b6; /* merah pastel */
+      --close-grey:  #d6d6d6; /* abu pastel */
+      --continue-green: #6ab26a;
+    }
+    * { box-sizing: border-box; }
+    html,body { height:100%; margin:0; padding:0; background:var(--bg); font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; color:#2F2A2A;}
+    button { font-family: inherit; }
+    .hidden-visually { position:absolute !important; left:-9999px !important; width:1px !important; height:1px !important; overflow:hidden !important; }
+
+    /* ============================
+       Page containers
+       ============================ */
+    .level-selector { text-align:center; margin: 20px auto 4px; }
+    .level-btn {
+      display:inline-block; margin:0 8px; padding:10px 18px; border-radius: 22px; border:none; color:#fff; font-weight:700; cursor:pointer;
+      background: #e75480; box-shadow: 0 3px 12px rgba(231,84,128,0.15);
+    }
+    .level-btn.locked { background:#bdbdbd; cursor:not-allowed; opacity:0.85; }
+    .level-btn.active { background:var(--pink); }
+
+    .container {
+      max-width: 520px; margin: 14px auto 28px; background:#fff; border-radius: 16px; padding: 22px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.06);
+    }
+    h1 { text-align:center; margin:6px 0 10px; color:var(--pink); font-size:1.4rem; }
+    p.description { text-align:center; color:var(--muted); margin:8px 0 14px; }
+
+    /* ============================
+       Level 1 styles
+       ============================ */
+    #gameArea {
+      position:relative; height:324px; border-radius:14px;
+      background: linear-gradient(180deg,#fff,#FFE5EC); border:2px dashed #FF9FB1; overflow:hidden;
+    }
+    .basket {
+      position:absolute; bottom:14px; left:50%; transform:translateX(-50%);
+      width:122px; height:64px; border-radius:28px;
+      background: linear-gradient(135deg,#FFB6C1,#FF6F91);
+      display:flex; align-items:center; justify-content:center; font-size:36px; box-shadow:var(--card-shadow);
+      user-select:none;
+    }
+    .falling-item { position:absolute; font-size:32px; pointer-events:none; user-select:none; }
+
+    .progress-bar { margin-top:14px; height:14px; background:#FFE3E9; border-radius:12px; overflow:hidden; box-shadow: inset 0 1px 3px rgba(0,0,0,0.08);}
+    .progress-fill { height:100%; width:0%; background: linear-gradient(90deg,#FF6F91,#FF9FB1); border-radius:12px; transition:width .28s ease; }
+
+    .info { margin-top:12px; font-weight:600; text-align:center; color:#b64657; }
+
+    /* ============================
+       Modal (common) and buttons
+       ============================ */
+    .modal-overlay {
+      position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+      background: rgba(47,42,42,0.82); padding:12px; box-sizing:border-box; visibility:hidden; opacity:0; transition:opacity .25s ease;
+      z-index:40;
+    }
+    .modal-overlay.show { visibility:visible; opacity:1; }
+    .modal {
+      background:white; border-radius:18px; padding:28px 26px; max-width:92vw; text-align:center; box-shadow:0 8px 32px rgba(0,0,0,0.06);
+    }
+    .modal h2 { margin:0 0 8px; color:#FF4C7E; font-size:1.4rem; }
+    .modal p { margin:6px 0 14px; color:#7a3a50; }
+
+    .modal-secret { font-weight:900; color:#FF1E57; font-size:1.4rem; margin-bottom:18px; user-select:all; }
+
+    /* Continue button animation */
+    @keyframes continueIn {
+      0% { opacity:0; transform: translateY(12px) scale(.98); }
+      60% { opacity:1; transform: translateY(-6px) scale(1.03); }
+      100% { opacity:1; transform: translateY(0) scale(1); }
+    }
+    .btn { padding:12px 20px; border-radius:22px; border:none; cursor:pointer; font-weight:700; }
+    .btn:active { transform: scale(.98); }
+    .btn-close { background: var(--close-grey); color:#222; }
+    .btn-restart { background: var(--restart-red); color:#6b1f1f; }
+    .btn-continue { background: var(--continue-green); color:white; animation: continueIn .55s ease both; }
+
+    /* ============================
+       Level 2 styles (5x5 grid)
+       ============================ */
+    .info-2 { font-weight:600; text-align:center; margin:6px 0 10px; color:var(--muted); }
+    #timer { color:#e75480; font-weight:700; }
+    #score { color:#d93b6d; font-weight:700; }
+    #message { text-align:center; margin:10px 0 18px; color:#9b3a5c; font-weight:700; min-height:24px; }
+
+    #grid {
+      display:grid; gap:12px; padding:10px; width:100%; margin-top:6px;
+      grid-template-columns: repeat(5, 1fr);
+      justify-items:stretch;
+    }
+    .card {
+      aspect-ratio: 1 / 1;
+      border-radius:14px;
+      display:flex; align-items:center; justify-content:center; font-weight:900; font-size:22px; cursor:pointer;
+      user-select:none; box-shadow: 0 6px 12px rgba(0,0,0,0.06); transition: transform .15s ease, opacity .25s ease;
+    }
+    .card:hover:not(.matched) { transform: scale(1.03); }
+    .card.matched { opacity:.45; cursor:default; box-shadow:none; }
+    /* Pastel color classes requested */
+    .c-pink   { background:#ffd1df; }
+    .c-green  { background:#b6f0d1; } /* pastel hijau */
+    .c-blue   { background:#cbe9ff; } /* pastel biru */
+    .c-purple { background:#e7d7ff; } /* pastel ungu */
+    .c-yellow { background:#fff6c4; color:#4b3a0a; } /* pastel kuning */
+
+    /* removed card animation (fade + scale) when color group removed */
+    .fade-out { transition: opacity 240ms ease, transform 240ms ease; opacity:0; transform:scale(.94); }
+
+    /* ============================
+       Level 3 styles (memory sets)
+       ============================ */
+    .level3-grid { display:grid; gap:12px; justify-items:center; margin-top:6px; }
+    .card-small { width:86px; height:86px; border-radius:14px; box-shadow:0 4px 12px rgba(255,111,145,0.08); cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:2.2rem; user-select:none; }
+    .card-inner { width:100%; height:100%; border-radius:14px; display:flex; align-items:center; justify-content:center; font-weight:700; transition:background .2s; }
+    .pink3 { background:#FFB7C5; color:#fff; }
+    .blue3 { background:#A8D0FF; color:#fff; }
+    .green3 { background:#A1E3B6; color:#fff; }
+    .beige3 { background:#F5E6D3; color:#F5E6D3; }
+    .card-small.matched { outline:3px solid #7edfb0; opacity:.75; cursor:default; }
+    
+    /* responsive tweaks */
+    @media (max-width:520px) {
+      .container { margin:10px; padding:14px; border-radius:12px; }
+      .card { font-size:18px; border-radius:12px; }
+      .card-small { width:72px; height:72px; font-size:1.8rem; }
+      #grid { gap:10px; }
+    }
+
+    /* ============================
+       Final Stage styles (overlay, book/letter, hearts, petals)
+       ============================ */
+    #finalStageOverlay {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(10,10,12,0.76);
+      z-index: 90;
+      padding: 20px;
+    }
+    #finalStageContent {
+      position: relative;
+      max-width: 880px;
+      width: calc(100% - 40px);
+      display:flex;
+      gap:20px;
+      align-items: flex-start;
+      justify-content: center;
+      flex-direction: column;
+      color: #23181a;
+      pointer-events: auto;
+    }
+    #finalImage {
+      width: 320px;
+      max-width: 46%;
+      border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+      background: linear-gradient(135deg,#fff,#ffeef3);
+      display:block;
+      user-select:none;
+      cursor:pointer;
+      align-self:center;
+    }
+    .heart-effect {
+      position: absolute;
+      font-size: 26px;
+      pointer-events:none;
+      transform-origin:center;
+      animation: heartPop 900ms ease-out forwards;
+      z-index: 95;
+    }
+    @keyframes heartPop {
+      0% { transform: translate(-50%,-50%) scale(.8) rotate(-12deg); opacity:1; filter: blur(0px); }
+      60% { transform: translate(-50%,-120%) scale(1.4) rotate(6deg); opacity:.9; }
+      100% { transform: translate(-50%,-240%) scale(1.6) rotate(18deg); opacity:0; filter: blur(2px); }
+    }
+
+    /* Letter box - scrollable */
+    #finalLetterBox {
+      max-height: 64vh;
+      overflow:auto;
+      padding: 18px;
+      background: rgba(255,255,255,0.98);
+      border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.12);
+      flex: 1 1 48%;
+      font-family: "Courier New", Courier, monospace;
+      font-size: 16px;
+      line-height: 1.6;
+      color: #2b1820;
+      white-space: pre-wrap;
+      display: none; /* hidden until reveal */
+    }
+
+    /* typewriter caret */
+    .typewriter-caret {
+      display:inline-block;
+      width:8px;
+      background:#2b1820;
+      margin-left:3px;
+      animation: blinkCaret 900ms steps(1) infinite;
+      height:1.1em;
+      vertical-align: bottom;
+    }
+    @keyframes blinkCaret {
+      0%,50% { opacity:1; }
+      51%,100% { opacity:0; }
+    }
+
+    /* petals using emoji (no image files required) */
+    .petal {
+      position: fixed;
+      top: -40px;
+      font-size: 22px;
+      pointer-events:none;
+      opacity: 0.95;
+      transform-origin: center;
+      animation: petalFall linear forwards;
+      z-index: 85;
+      filter: drop-shadow(0 2px 6px rgba(0,0,0,0.12));
+    }
+    @keyframes petalFall {
+      0% { transform: translateY(-10vh) rotate(0deg) translateX(0); opacity:1; }
+      100% { transform: translateY(110vh) rotate(720deg) translateX(30vw); opacity:0; }
+    }
+
+    /* music control */
+    #musicControl {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      z-index: 120;
+      background: rgba(255,255,255,0.94);
+      padding: 10px 12px;
+      border-radius: 999px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+      display:flex;
+      gap:8px;
+      align-items:center;
+    }
+    #musicControl button { background: #ff6f91; color: white; border:none; padding:8px 10px; border-radius: 999px; font-weight:700; cursor:pointer; }
+    #musicControl button:active { transform:scale(.98); }
+    #musicStatus { font-size:13px; color:#66223a; font-weight:700; margin-left:6px; }
+  </style>
+</head>
+<body>
+  <!-- Level selector (visual only, locked until unlocked) -->
+  <div class="level-selector" aria-hidden="true">
+    <button id="sel1" class="level-btn active">Level 1</button>
+    <button id="sel2" class="level-btn locked" disabled>Level 2 <span class="lock-icon">🔒</span></button>
+    <button id="sel3" class="level-btn locked" disabled>Level 3 <span class="lock-icon">🔒</span></button>
+  </div>
+
+  <!-- ============================
+       LEVEL 1 SECTION
+       ============================ -->
+  <section id="level1" class="container" aria-label="Level 1 - Catch items">
+    <h1>Sweet Quest: Level 1</h1>
+    <p class="description">Catch the falling items into your basket! Catch <strong id="targetCount">25</strong> items to win.</p>
+
+    <div id="gameArea" aria-live="polite" aria-label="Game playing area">
+      <div id="basket" class="basket" role="img" aria-roledescription="catcher">🧺</div>
+    </div>
+
+    <div class="progress-bar" aria-hidden="false" aria-label="Progress">
+      <div id="progressFill" class="progress-fill" style="width:0%"></div>
+    </div>
+
+    <div class="info" id="infoLevel1">Items left to catch: <span id="itemsLeft">5</span></div>
+
+    <!-- Restart button for Level 1 (we will hide except on lose) -->
+    <div style="margin-top:12px; display:flex; gap:10px; justify-content:center; align-items:center;">
+      <button id="restartLevel1" class="btn btn-restart" style="display:none;">Restart Level</button>
+    </div>
+  </section>
+
+  <!-- Modal for Level 1 -->
+  <div id="modal1" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal1Title" aria-describedby="modal1Desc">
+    <div class="modal">
+      <h2 id="modal1Title">Congratulations!</h2>
+      <p id="modal1Desc">You caught all the items! Here's your secret key:</p>
+      <div class="modal-secret" id="secretKey1">KEY LEVEL 1 🌟</div>
+      <div style="display:flex; gap:10px; justify-content:center; align-items:center;">
+        <button id="closeModal1" class="btn btn-close">Close</button>
+        <button id="continueTo2" class="btn btn-continue" style="display:none;">Continue to Level 2</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================
+       LEVEL 2 SECTION
+       ============================ -->
+  <section id="level2" class="container" aria-label="Level 2 - Color match" style="display:none;">
+    <h1>Sweet Quest: Level 2</h1>
+
+    <div class="info-2">
+      Time left: <span id="timer">30</span>s &nbsp;|&nbsp; Score: <span id="score">0</span>
+    </div>
+
+    <div id="message" aria-live="polite"></div>
+
+    <div id="grid" role="grid" aria-label="Color cards grid" tabindex="0" aria-describedby="message"></div>
+
+    <!-- Restart (only on lose) -->
+    <div style="margin-top:12px; display:flex; gap:10px; justify-content:center; align-items:center;">
+      <button id="restartLevel2" class="btn btn-restart" style="display:none;">Restart Level</button>
+    </div>
+  </section>
+
+  <!-- Modal for Level 2 -->
+  <div id="modal2" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal2Title" aria-describedby="modal2Desc" style="display:none;">
+    <div class="modal">
+      <h2 id="modal2Title">You Win!</h2>
+      <p id="modal2Desc">Here's your secret key for Level 2:</p>
+      <div class="modal-secret" id="secretKey2">KEY LEVEL 2 🍓</div>
+      <div style="display:flex; gap:10px; justify-content:center; align-items:center;">
+        <button id="closeModal2" class="btn btn-close">Close</button>
+        <button id="continueTo3" class="btn btn-continue" style="display:none;">Continue to Level 3</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================
+       LEVEL 3 SECTION
+       ============================ -->
+  <section id="level3" class="container" aria-label="Level 3 - Memory sets" style="display:none;">
+    <h1>Sweet Quest: Level 3</h1>
+    <div class="timer" id="timerDisplay">Time Left: 25s</div>
+    <div class="info" id="infoText3">Memorize the emojis!</div>
+    <div id="gameGrid" class="level3-grid" style="grid-template-columns: repeat(3,1fr);"></div>
+
+    <div style="margin-top:12px; display:flex; gap:10px; justify-content:center; align-items:center;">
+      <button id="restartLevel3" class="btn btn-restart" style="display:none;">Restart Level</button>
+    </div>
+  </section>
+
+  <!-- Modal for Level 3 -->
+  <div id="modal3" class="modal-overlay" role="dialog" aria-modal="true" style="display:none;">
+    <div class="modal">
+      <h2>You Did It!</h2>
+      <p>All sets found! Here's your secret key:</p>
+      <div class="modal-secret" id="secretKey3">SECRET LEVEL 3</div>
+      <div style="display:flex; gap:10px; justify-content:center; align-items:center;">
+        <button id="closeModal3" class="btn btn-close">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================
+       FINAL STAGE OVERLAY
+       ============================ -->
+  <div id="finalStageOverlay" aria-hidden="true">
+    <div id="finalStageContent" role="dialog" aria-modal="true" aria-label="Final Stage">
+      <img id="finalImage" src="final_image.png" alt="Final Surprise - click me 20x" />
+      <div id="finalLetterBox" tabindex="0" aria-label="Secret Letter"></div>
+    </div>
+  </div>
+
+  <!-- Music control UI + audio element -->
+  <div id="musicControl" aria-hidden="false" title="Music control">
+    <button id="toggleMusicBtn">Play Music</button>
+    <div id="musicStatus">Music: Off</div>
+  </div>
+  <audio id="bgMusic" src="peacheyes.mp3" loop preload="auto"></audio>
+
+  <!-- ============================
+       JavaScript — verbose & explicit (modified with Final Stage)
+       ============================================================ -->
+  <script>
+    /* ============================================================
+       FLOW: Variables to track which level is unlocked / active
+       ============================================================ */
+    (function(){
+      // Buttons in the top selector (visual)
+      const selBtn1 = document.getElementById('sel1');
+      const selBtn2 = document.getElementById('sel2');
+      const selBtn3 = document.getElementById('sel3');
+
+      // Sections
+      const section1 = document.getElementById('level1');
+      const section2 = document.getElementById('level2');
+      const section3 = document.getElementById('level3');
+
+      // Flags to control unlocking
+      let isLevel2Unlocked = false;
+      let isLevel3Unlocked = false;
+
+      // Helper to show only the requested level section
+      function showLevel(levelNumber){
+        // Hide all first
+        section1.style.display = 'none';
+        section2.style.display = 'none';
+        section3.style.display = 'none';
+        selBtn1.classList.remove('active');
+        selBtn2.classList.remove('active');
+        selBtn3.classList.remove('active');
+
+        // Show requested level only if unlocked (except level 1)
+        if(levelNumber === 1){
+          section1.style.display = '';
+          selBtn1.classList.add('active');
+          // call reset/start for level1 if function exists
+          if(window.resetLevel1 && typeof window.resetLevel1 === 'function'){
+            window.resetLevel1();
+          }
+        }
+        if(levelNumber === 2){
+          if(!isLevel2Unlocked){
+            // ignore attempt to open locked level
+            return;
+          }
+          section2.style.display = '';
+          selBtn2.classList.add('active');
+          if(window.resetLevel2 && typeof window.resetLevel2 === 'function'){
+            window.resetLevel2();
+          }
+        }
+        if(levelNumber === 3){
+          if(!isLevel3Unlocked) return;
+          section3.style.display = '';
+          selBtn3.classList.add('active');
+          if(window.resetLevel3 && typeof window.resetLevel3 === 'function'){
+            window.resetLevel3();
+          }
+        }
+      }
+
+      // expose showLevel globally so other modules/buttons can call it
+      window.showLevel = showLevel;
+
+      // attach selector clicks (but they obey locks)
+      selBtn1.addEventListener('click', ()=> showLevel(1));
+      selBtn2.addEventListener('click', ()=> { if(isLevel2Unlocked) showLevel(2); });
+      selBtn3.addEventListener('click', ()=> { if(isLevel3Unlocked) showLevel(3); });
+
+      // expose functions to unlock levels for other modules
+      window.unlockLevel2 = function(){
+        isLevel2Unlocked = true;
+        // enable visual selector
+        selBtn2.classList.remove('locked');
+        selBtn2.disabled = false;
+        const lockIcon2 = selBtn2.querySelector('.lock-icon');
+        if(lockIcon2) lockIcon2.remove();
+      };
+      window.unlockLevel3 = function(){
+        isLevel3Unlocked = true;
+        selBtn3.classList.remove('locked');
+        selBtn3.disabled = false;
+        const lockIcon3 = selBtn3.querySelector('.lock-icon');
+        if(lockIcon3) lockIcon3.remove();
+      };
+
+      // Initially show level 1
+      showLevel(1);
+    })();
+
+    /* ============================================================
+       BACKGROUND MUSIC - autoplay handling & UI
+       ============================================================ */    (function(){
+      const audio = document.getElementById('bgMusic');
+      const btn = document.getElementById('toggleMusicBtn');
+      const status = document.getElementById('musicStatus');
+      let musicPlaying = false;
+      let triedAutoplay = false;
+
+      function updateUI(){
+        btn.textContent = musicPlaying ? 'Pause Music' : 'Play Music';
+        status.textContent = 'Music: ' + (musicPlaying ? 'On' : 'Off');
+      }
+
+      function playMusic(){
+        if(!audio) return;
+        audio.play().then(() => {
+          musicPlaying = true;
+          updateUI();
+        }).catch(()=> {
+          // autoplay blocked — user interaction required
+          musicPlaying = false;
+          updateUI();
+        });
+      }
+      function pauseMusic(){
+        if(!audio) return;
+        audio.pause();
+        musicPlaying = false;
+        updateUI();
+      }
+
+      // Toggle via UI
+      btn.addEventListener('click', function(){
+        if(musicPlaying) pauseMusic(); else playMusic();
+      });
+
+      // Try to play on first user gesture anywhere — many browsers require gesture
+      function playOnFirstGesture(){
+        if(triedAutoplay) return;
+        triedAutoplay = true;
+        playMusic();
+        // remove listeners
+        ['click','touchstart','keydown'].forEach(ev => {
+          window.removeEventListener(ev, playOnFirstGesture);
+        });
+      }
+      ['click','touchstart','keydown'].forEach(ev => {
+        window.addEventListener(ev, playOnFirstGesture, { once:true, passive:true });
+      });
+
+      // expose functions in case final stage wants to control
+      window.playGameMusic = playMusic;
+      window.pauseGameMusic = pauseMusic;
+      window.isMusicPlaying = () => musicPlaying;
+
+      updateUI();
+    })();
+
+    /* ============================================================
+       LEVEL 1 CODE — catching falling items
+       Fully verbosely implemented and exposes reset/pause
+       ============================================================ */
+    (function(){
+      // constants
+      const TARGET_COUNT = 25;
+
+      // DOM references
+      const gameArea = document.getElementById('gameArea');
+      const basket   = document.getElementById('basket');
+      const progressFill = document.getElementById('progressFill');
+      const itemsLeftNode = document.getElementById('itemsLeft');
+      const modal1Overlay = document.getElementById('modal1');
+      const closeModal1Btn = document.getElementById('closeModal1');
+      const continueTo2Btn = document.getElementById('continueTo2');
+      const restartLevel1Btn = document.getElementById('restartLevel1');
+
+      // game state variables
+      let caughtCount = 0;
+      let spawnedItems = []; // array of objects { element, y, speed, caught }
+      let spawnTimerId = null;
+      let rafId = null;
+      let isPaused = false;
+
+      // accessible live region (screen readers)
+      const liveRegion = document.createElement('div');
+      liveRegion.setAttribute('aria-live', 'polite');
+      liveRegion.setAttribute('aria-atomic', 'true');
+      liveRegion.className = 'hidden-visually';
+      document.body.appendChild(liveRegion);
+
+      // list of emoji items to spawn
+      const EMOJI_POOL = ['🧁','🧸','🍪','🌟','🍓'];
+
+      // spawn a new falling item element
+      function spawnItem(){
+        if(isPaused) return;
+        const emoji = EMOJI_POOL[Math.floor(Math.random() * EMOJI_POOL.length)];
+        const el = document.createElement('div');
+        el.className = 'falling-item';
+        el.textContent = emoji;
+        // place randomly across width but inside margins
+        const leftPercent = 6 + Math.random() * 88; // keep inside slightly
+        el.style.left = leftPercent + '%';
+        el.style.top = '-40px';
+        gameArea.appendChild(el);
+        const speed = 1 + Math.random() * 1.3;
+        spawnedItems.push({ element: el, y: -40, speed: speed, caught: false });
+      }
+
+      // move basket according to clientX prepared by mouse or touch handlers
+      function moveBasketTo(clientX){
+        const rect = gameArea.getBoundingClientRect();
+        let percent = ((clientX - rect.left) / rect.width) * 100;
+        if(percent < 6) percent = 6;
+        if(percent > 94) percent = 94;
+        basket.style.left = percent + '%';
+      }
+
+      // update positions of items and check collisions
+      function updateItems(){
+        if(isPaused) return;
+        const basketRect = basket.getBoundingClientRect();
+        spawnedItems.forEach(item => {
+          if(item.caught) return;
+          item.y += item.speed;
+          item.element.style.top = item.y + 'px';
+          const itemRect = item.element.getBoundingClientRect();
+          // check intersection / collision with basket
+          if(itemRect.bottom >= basketRect.top && itemRect.left < basketRect.right && itemRect.right > basketRect.left){
+            // caught
+            item.caught = true;
+            if(item.element && item.element.parentElement){
+              item.element.parentElement.removeChild(item.element);
+            }
+            caughtCount++;
+            liveRegion.textContent = `You caught an item. ${TARGET_COUNT - caughtCount} items left.`;
+            updateProgressVisual();
+          } else if(item.y > gameArea.clientHeight + 40){
+            // fell beyond bottom
+            item.caught = true;
+            if(item.element && item.element.parentElement){
+              item.element.parentElement.removeChild(item.element);
+            }
+          }
+        });
+
+        // remove caught marked items from array
+        spawnedItems = spawnedItems.filter(it => !it.caught);
+        if(caughtCount >= TARGET_COUNT){
+          // stop game and show win modal
+          endGame(true);
+        }
+      }
+
+      // update the progress bar width and counter text
+      function updateProgressVisual(){
+        const pct = (caughtCount / TARGET_COUNT) * 100;
+        progressFill.style.width = pct + '%';
+        itemsLeftNode.textContent = Math.max(0, TARGET_COUNT - caughtCount);
+      }
+
+      // animation frame loop
+      function tick(){
+        updateItems();
+        rafId = requestAnimationFrame(tick);
+      }
+
+      // start/resume the game
+      function startGame(){
+        // reset state
+        isPaused = false;
+        caughtCount = 0;
+        spawnedItems.forEach(it => { if(it.element && it.element.parentElement) it.element.parentElement.removeChild(it.element); });
+        spawnedItems = [];
+        updateProgressVisual();
+        basket.style.left = '50%';
+
+        // spawn at regular interval
+        if(spawnTimerId) clearInterval(spawnTimerId);
+        spawnTimerId = setInterval(spawnItem, 900);
+
+        // start raf loop
+        if(rafId) cancelAnimationFrame(rafId);
+        rafId = requestAnimationFrame(tick);
+
+        // attach input handlers for basket movement
+        gameArea.addEventListener('mousemove', onMouseMoveForLevel1);
+        gameArea.addEventListener('touchmove', onTouchMoveForLevel1, { passive:true });
+
+        // hide modal and reset continue button
+        modal1Overlay.classList.remove('show');
+        continueTo2Btn.style.display = 'none';
+
+        // hide restart button by default on start
+        restartLevel1Btn.style.display = 'none';
+      }
+
+      // pause - used when switching away or when showing modal
+      function pauseGame(){
+        isPaused = true;
+        if(spawnTimerId) { clearInterval(spawnTimerId); spawnTimerId = null; }
+        if(rafId) { cancelAnimationFrame(rafId); rafId = null; }
+        gameArea.removeEventListener('mousemove', onMouseMoveForLevel1);
+        gameArea.removeEventListener('touchmove', onTouchMoveForLevel1);
+      }
+
+      // end game; if won==true show success modal; if false show lose modal (with restart)
+      function endGame(won){
+        // stop loops
+        pauseGame();
+
+        if(won){
+          // show modal1 success content
+          modal1Overlay.classList.add('show');
+          // make continue button visible (user must click to proceed)
+          // we add a small timeout to allow CSS animation if needed
+          setTimeout(function(){
+            continueTo2Btn.style.display = '';
+          }, 120);
+
+          // unlock level 2 so selector shows unlocked visually (but user must click continue to go)
+          window.unlockLevel2();
+          // hide restart (on win we don't show restart)
+          restartLevel1Btn.style.display = 'none';
+        } else {
+          // show lose state in modal OR inline message; we will show modal and display restart button
+          modal1Overlay.classList.add('show');
+          // hide continue button when losing
+          continueTo2Btn.style.display = 'none';
+          // Show restart button for player to try again (in footer of level)
+          restartLevel1Btn.style.display = '';
+        }
+      }
+
+      // mouse & touch handlers for moving basket
+      function onMouseMoveForLevel1(e){
+        moveBasketTo(e.clientX);
+      }
+      function onTouchMoveForLevel1(e){
+        if(!e.touches || e.touches.length === 0) return;
+        moveBasketTo(e.touches[0].clientX);
+      }
+
+      // event listeners for modal and restart actions
+      closeModal1Btn.addEventListener('click', function(){
+        modal1Overlay.classList.remove('show');
+      });
+
+      continueTo2Btn.addEventListener('click', function(){
+        // user chose to continue; hide modal, show level 2
+        modal1Overlay.classList.remove('show');
+        // show level 2 section (will call resetLevel2)
+        window.showLevel(2);
+      });
+
+      restartLevel1Btn.addEventListener('click', function(){
+        // restart current level 1
+        modal1Overlay.classList.remove('show');
+        startGame();
+      });
+
+      // export reset/pause for top-level selector
+      window.resetLevel1 = function(){
+        startGame();
+      };
+      window.pauseLevel1 = function(){
+        pauseGame();
+      };
+
+      // start level 1 now on load
+      startGame();
+
+    })();
+
+    /* ============================================================
+       LEVEL 2 CODE — 5x5 grid with pastel colors & emoji mapping
+       ============================================================ */
+    (function(){
+      // palette mapping - explicit and readable
+      const palette = [
+        { id: 'pink',   className: 'c-pink',   emoji: '🍓' }, // pastel pink -> 🍓
+        { id: 'green',  className: 'c-green',  emoji: '🍥' }, // pastel hijau -> 🍥
+        { id: 'blue',   className: 'c-blue',   emoji: '🍨' }, // pastel biru -> 🍨
+        { id: 'purple', className: 'c-purple', emoji: '🍰' }, // pastel ungu -> 🍰
+        { id: 'yellow', className: 'c-yellow', emoji: '🧸' }  // pastel kuning -> 🧸
+      ];
+
+      // DOM references for level 2
+      const GRID_EL = document.getElementById('grid');
+      const TIMER_EL = document.getElementById('timer');
+      const SCORE_EL = document.getElementById('score');
+      const MESSAGE_EL = document.getElementById('message');
+      const MODAL2 = document.getElementById('modal2');
+      const CLOSE_MODAL2 = document.getElementById('closeModal2');
+      const CONTINUE_TO3_BTN = document.getElementById('continueTo3');
+      const RESTART_LEVEL2_BTN = document.getElementById('restartLevel2');
+
+      // game configuration for 5x5
+      const COUNT_PER_COLOR = 5; // 5 each -> total 25 cards
+      const TOTAL_CARDS = COUNT_PER_COLOR * palette.length;
+
+      // internal state
+      let deck = []; // array of color ids for each position
+      let selectedColor = null;
+      let currentStreak = 0;
+      let score = 0;
+      let timeLeft = 60;
+      let timerInterval = null;
+
+      // Utility: create an array with N copies of value val
+      function makeCopies(val, n){
+        const arr = [];
+        for(let i=0;i<n;i++) arr.push(val);
+        return arr;
+      }
+
+      // Utility: shuffle an array (Fisher-Yates)
+      function shuffleArray(arr){
+        for(let i = arr.length - 1; i > 0; i--){
+          const j = Math.floor(Math.random() * (i + 1));
+          const tmp = arr[i];
+          arr[i] = arr[j];
+          arr[j] = tmp;
+        }
+        return arr;
+      }
+
+      // Build deck: create COUNT_PER_COLOR of each palette id, shuffle
+      function generateDeck(){
+        let temp = [];
+        for(let i = 0; i < palette.length; i++){
+          const id = palette[i].id;
+          const copies = makeCopies(id, COUNT_PER_COLOR);
+          temp = temp.concat(copies);
+        }
+        shuffleArray(temp);
+        return temp;
+      }
+
+      // Create a single card DOM element for given colorId and index
+      function createCardElement(colorId, idx){
+        const paletteItem = palette.find(p => p.id === colorId);
+        const card = document.createElement('div');
+        card.className = 'card ' + paletteItem.className;
+        card.dataset.color = colorId;
+        card.dataset.index = idx;
+        card.setAttribute('role','button');
+        card.tabIndex = 0;
+        // Put emoji as content
+        card.textContent = paletteItem.emoji;
+        // attach event handlers
+        card.addEventListener('click', onCardClicked);
+        card.addEventListener('keydown', function(e){
+          if(e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onCardClicked.call(card, e);
+          }
+        });
+        return card;
+      }
+
+      // Render the whole grid from the deck array
+      function renderGrid(){
+        GRID_EL.innerHTML = '';
+        GRID_EL.style.gridTemplateColumns = 'repeat(5, 1fr)';
+        for(let i = 0; i < deck.length; i++){
+          const colId = deck[i];
+          const cardEl = createCardElement(colId, i);
+          GRID_EL.appendChild(cardEl);
+        }
+        SCORE_EL.textContent = score;
+      }
+
+      // Reset the game state and start the timer
+      function resetAndStartLevel2(){
+        // generate deck and shuffle
+        deck = generateDeck();
+        selectedColor = null;
+        currentStreak = 0;
+        score = 0;
+        timeLeft = 60;
+
+        // update UI texts
+        MESSAGE_EL.textContent = 'Select cards of the same color in a row!';
+        SCORE_EL.textContent = score;
+        TIMER_EL.textContent = timeLeft;
+
+        // render grid
+        renderGrid();
+
+        // ensure restart button hidden on fresh start
+        RESTART_LEVEL2_BTN.style.display = 'none';
+
+        // start timer
+        startTimer();
+        // hide modal if accidentally open
+        MODAL2.classList.remove('show');
+        CONTINUE_TO3_BTN.style.display = 'none';
+      }
+
+      // Start timer function
+      function startTimer(){
+        if(timerInterval) clearInterval(timerInterval);
+        timerInterval = setInterval(function(){
+          timeLeft--;
+          TIMER_EL.textContent = timeLeft;
+          if(timeLeft <= 0){
+            clearInterval(timerInterval);
+            timerInterval = null;
+            // time's up -> finish with lose behavior
+            finishLevel2(false);
+          }
+        }, 1000);
+      }
+
+      // Card click handler (attached to each card element)
+      function onCardClicked(e){
+        // this can be invoked with .call(card)
+        const cardEl = (this instanceof Element) ? this : e.currentTarget;
+        // if card already matched (we'll denote by .matched class), ignore
+        if(cardEl.classList.contains('matched')) return;
+
+        const clickedColor = cardEl.dataset.color;
+
+        // If no selected color for streak, set it and start new streak
+        if(selectedColor === null){
+          selectedColor = clickedColor;
+          currentStreak = 1;
+          score += 1;
+          cardEl.classList.add('matched'); // visually mark as pressed/matched
+          MESSAGE_EL.textContent = `Good start! Keep clicking ${clickedColor} cards!`;
+        } else if(clickedColor === selectedColor){
+          // same color -> increment streak
+          currentStreak++;
+          score += currentStreak;
+          cardEl.classList.add('matched');
+          MESSAGE_EL.textContent = `Nice! ${currentStreak} ${clickedColor} cards in a row!`;
+        } else {
+          // different color selected -> reset previous matched visual marks (only visible ones)
+          selectedColor = clickedColor;
+          currentStreak = 1;
+          score += 1;
+          // reset matched class on currently visible cards (but do NOT restore removed ones)
+          const visibleMatched = GRID_EL.querySelectorAll('.card.matched');
+          visibleMatched.forEach(function(c){
+            // for safety only remove class if it still exists in DOM
+            c.classList.remove('matched');
+          });
+          // mark this card as matched (start new streak)
+          cardEl.classList.add('matched');
+          MESSAGE_EL.textContent = `Oops! Changed to ${clickedColor}. Streak reset.`;
+        }
+
+        // update score display
+        SCORE_EL.textContent = score;
+
+        // After marking this card matched, check whether all remaining cards of this color are now matched;
+        // if so, auto-remove them from the DOM (and from deck model)
+        checkAndAutoRemoveColor(clickedColor);
+      }
+
+      // Check remaining cards of a color and auto-remove them if all are matched
+      function checkAndAutoRemoveColor(colorId){
+        // find all card elements of this color in the grid (current DOM)
+        const allColorCards = Array.from(GRID_EL.querySelectorAll('.card[data-color="' + colorId + '"]'));
+
+        if(allColorCards.length === 0) {
+          // nothing to remove (maybe already removed earlier)
+          return;
+        }
+
+        // Determine if all of them have class 'matched' (i.e., user clicked them)
+        const allMarked = allColorCards.every(function(cardEl){
+          return cardEl.classList.contains('matched');
+        });
+
+        if(allMarked){
+          // animate removal: apply fade-out class and then remove from DOM
+          allColorCards.forEach(function(cardEl){
+            cardEl.classList.add('fade-out');
+          });
+          // after a short delay remove them from DOM, and also remove entries from deck model
+          setTimeout(function(){
+            // create a set of indexes to remove by reading dataset.index (but note: dataset.index is the position at render; after removals it may not be continuous)
+            const nodesToRemove = Array.from(GRID_EL.querySelectorAll('.card.fade-out'));
+            nodesToRemove.forEach(function(node){
+              // find its index in the current deck by searching matching color + emoji and a unique position match
+              // we'll remove first occurrence each time to keep it simple
+              // find index in deck (first index with that color)
+              const idx = deck.findIndex(function(val){ return val === node.dataset.color; });
+              if(idx !== -1){
+                // remove one element at idx
+                deck.splice(idx, 1);
+              }
+              // finally remove the DOM node
+              if(node && node.parentElement) node.parentElement.removeChild(node);
+            });
+
+            // after removal, check if deck empty => win
+            if(deck.length === 0){
+              // There are no cards left. This is the condition to win level 2.
+              finishLevel2(true);
+            } else {
+              // Re-render remaining grid to ensure layout consistent (we reconstruct DOM from deck)
+              reRenderAfterRemovals();
+            }
+          }, 280); // match CSS timing
+        }
+      }
+
+      // Re-render grid after removal to maintain consistent indexing & event handlers
+      function reRenderAfterRemovals(){
+        // Save current selected color/streak state? We'll keep selectedColor (player keeps last color)
+        // But we already reset matched classes on visible cards when switching colors earlier.
+        const prevSelected = selectedColor;
+        const prevStreak = currentStreak;
+
+        GRID_EL.innerHTML = '';
+        for(let i=0;i<deck.length;i++){
+          const colorId = deck[i];
+          const el = createCardElement(colorId, i);
+          // If previous selected color equals this color, visual matched might have been removed earlier; don't mark matched
+          GRID_EL.appendChild(el);
+        }
+        // restore UI scoreboard
+        SCORE_EL.textContent = score;
+        selectedColor = prevSelected;
+        currentStreak = prevStreak;
+      }
+
+      // finish level 2: won flag indicates win/lose; if win show modal & continue button (user must click),
+      // if lose show restart button
+      function finishLevel2(won){
+        // stop timer
+        if(timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+        // disable interactions on existing cards
+        Array.from(GRID_EL.querySelectorAll('.card')).forEach(function(c){
+          c.style.pointerEvents = 'none';
+        });
+
+        if(won){
+          // show modal success
+          MODAL2.style.display = ''; // ensure visible (some browsers)
+          MODAL2.classList.add('show');
+          // reveal continue button (user must click)
+          setTimeout(function(){ CONTINUE_TO3_BTN.style.display = ''; }, 120);
+          // unlock level 3 (makes top selector visual unlocked)
+          if(window.unlockLevel3) window.unlockLevel3();
+          // hide restart button on win
+          RESTART_LEVEL2_BTN.style.display = 'none';
+        } else {
+          // show message and display restart button (only on lose)
+          MESSAGE_EL.textContent = 'Time is up! Try again!';
+          RESTART_LEVEL2_BTN.style.display = '';
+        }
+      }
+
+      // close modal -> remove show
+      CLOSE_MODAL2.addEventListener('click', function(){
+        MODAL2.classList.remove('show');
+      });
+
+      // continue to level 3 button in modal
+      CONTINUE_TO3_BTN.addEventListener('click', function(){
+        MODAL2.classList.remove('show');
+        // show level 3 via top-level function
+        window.showLevel(3);
+      });
+
+      // restart level 2 button on lose
+      RESTART_LEVEL2_BTN.addEventListener('click', function(){
+        // simply reset the level
+        resetAndStartLevel2();
+      });
+
+      // expose reset & pause methods for top-level usage
+      window.resetLevel2 = function(){
+        resetAndStartLevel2();
+      };
+      window.pauseLevel2 = function(){
+        if(timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+        // disable card interactions
+        Array.from(GRID_EL.querySelectorAll('.card')).forEach(function(c){ c.style.pointerEvents = 'none'; });
+      };
+
+      // we do not auto-start level 2 on page load. resetLevel2 is called when user navigates to level 2.
+      // But to ensure safe initial state we fill deck with generateDeck once
+      deck = generateDeck();
+
+    })();
+
+    /* ============================================================
+       LEVEL 3 CODE — memory-of-sets (kept from your Level 3)
+       - 3 sets of 3, memorize then flip to find sets
+       ============================================================ */
+    (function(){
+      // constants and configuration (explicit)
+      const TIME_LIMIT_3 = 25; // seconds
+      const MEMO_TIME = 5; // seconds to display the emojis before hiding
+      const SET_SIZE = 3;
+      const TOTAL_SETS = 3;
+
+      // cards data — 3 sets * 3 emoji each
+      const cardsData = [
+        { id: 1, color: 'pink3', emoji: '🍓' },
+        { id: 2, color: 'pink3', emoji: '🍓' },
+        { id: 3, color: 'pink3', emoji: '🍓' },
+
+        { id: 4, color: 'blue3', emoji: '🍨' },
+        { id: 5, color: 'blue3', emoji: '🍨' },
+        { id: 6, color: 'blue3', emoji: '🍨' },
+
+        { id: 7, color: 'green3', emoji: '🍥' },
+        { id: 8, color: 'green3', emoji: '🍥' },
+        { id: 9, color: 'green3', emoji: '🍥' }
+      ];
+
+      // DOM refs
+      const gameGrid = document.getElementById('gameGrid');
+      const timerDisplay = document.getElementById('timerDisplay');
+      const infoText3 = document.getElementById('infoText3');
+      const modal3Overlay = document.getElementById('modal3');
+      const closeModalBtn3 = document.getElementById('closeModal3');
+      const restartLevel3Btn = document.getElementById('restartLevel3');
+
+      // state variables
+      let cards = [];
+      let flippedCards = [];
+      let foundSets = 0;
+      let timer3 = TIME_LIMIT_3;
+      let timer3Id = null;
+      let lockClicks = false;
+      let game3Started = false;
+
+      // shuffle helper
+      function shuffleArrayLocal(array){
+        for(let i=array.length-1;i>0;i--){
+          const j = Math.floor(Math.random()*(i+1));
+          [array[i], array[j]] = [array[j], array[i]];
+        }
+        return array;
+      }
+
+      // create DOM element for a card in level3
+      function createCardElement3(cardData, positionIndex){
+        const card = document.createElement('div');
+        card.className = 'card-small';
+        card.tabIndex = 0;
+        card.dataset.id = cardData.id;
+        card.dataset.color = cardData.color;
+        card.dataset.emoji = cardData.emoji;
+        card.dataset.position = positionIndex;
+        // inner colored box
+        const inner = document.createElement('div');
+        inner.className = 'card-inner ' + cardData.color;
+        inner.textContent = cardData.emoji;
+        card.appendChild(inner);
+
+        // click handler
+        card.addEventListener('click', function(){
+          if(!game3Started || lockClicks || card.classList.contains('matched') || card.classList.contains('flipped')) return;
+          flipCard3(card);
+        });
+
+        // keyboard
+        card.addEventListener('keydown', function(e){
+          if(e.key === 'Enter' || e.key === ' '){
+            e.preventDefault();
+            card.click();
+          }
+        });
+
+        return card;
+      }
+
+      // show emoji on a given card (reveal)
+      function showEmoji3(card){
+        const inner = card.firstElementChild;
+        inner.className = 'card-inner ' + card.dataset.color;
+        inner.textContent = card.dataset.emoji;
+      }
+
+      // show beige (hide emoji)
+      function showBeige3(card){
+        const inner = card.firstElementChild;
+        inner.className = 'card-inner beige3';
+        inner.textContent = '';
+      }
+
+      // flip card
+      function flipCard3(card){
+        showEmoji3(card);
+        card.classList.add('flipped');
+        flippedCards.push(card);
+
+        if(flippedCards.length === SET_SIZE){
+          checkSetMatch3();
+        }
+      }
+
+      // check whether the flipped set is all same emoji
+      function checkSetMatch3(){
+        lockClicks = true;
+        const emojis = flippedCards.map(c => c.dataset.emoji);
+        const allSame = emojis.every(e => e === emojis[0]);
+        if(allSame){
+          // mark as matched
+          flippedCards.forEach(function(c){
+            c.classList.add('matched');
+          });
+          foundSets++;
+          infoText3.textContent = `Good job! Sets found: ${foundSets} / ${TOTAL_SETS}`;
+          flippedCards = [];
+          lockClicks = false;
+          if(foundSets === TOTAL_SETS){
+            // all sets found -> win
+            endGame3(true);
+          }
+        } else {
+          // flip back after small delay
+          setTimeout(function(){
+            flippedCards.forEach(function(c){
+              if(!c.classList.contains('matched')){
+                showBeige3(c);
+                c.classList.remove('flipped');
+              }
+            });
+            flippedCards = [];
+            lockClicks = false;
+            infoText3.textContent = `Find all 3 sets! Sets found: ${foundSets} / ${TOTAL_SETS}`;
+          }, 900);
+        }
+      }
+
+      // shuffle card DOM positions
+      function shufflePositions3(){
+        let positions = [...Array(cards.length).keys()];
+        shuffleArrayLocal(positions);
+        cards.forEach((card, i) => card.dataset.position = positions[i]);
+        cards.sort((a,b) => a.dataset.position - b.dataset.position);
+        gameGrid.innerHTML = '';
+        cards.forEach(card => gameGrid.appendChild(card));
+      }
+
+      // timer for level 3
+      function startTimer3(){
+        timer3 = TIME_LIMIT_3;
+        timerDisplay.textContent = `Time Left: ${timer3}s`;
+        if(timer3Id) clearInterval(timer3Id);
+        timer3Id = setInterval(function(){
+          timer3--;
+          timerDisplay.textContent = `Time Left: ${timer3}s`;
+          if(timer3 <= 0){
+            clearInterval(timer3Id);
+            endGame3(false);
+          }
+        }, 1000);
+      }
+
+      // end game 3 (win/lose)
+      function endGame3(won){
+        game3Started = false;
+        if(timer3Id) { clearInterval(timer3Id); timer3Id = null; }
+        if(won){
+          infoText3.textContent = `You found all sets!`;
+          // show modal
+          modal3Overlay.classList.add('show');
+          // hide restart on win
+          restartLevel3Btn.style.display = 'none';
+          // Unlock level 3 already done earlier; now trigger final stage shortly after winner modal shows
+          setTimeout(function(){
+            // show final stage overlay directly (user asked for immediate final)
+            showFinalStage();
+          }, 600);
+        } else {
+          infoText3.textContent = `Oops, time's up! Try again!`;
+          // show simple alert and show restart button
+          setTimeout(function(){
+            // show restart inline
+            restartLevel3Btn.style.display = '';
+          }, 100);
+        }
+      }
+
+      // Initialize game 3: show emojis briefly, then hide, shuffle, start timer
+      async function initGame3(){
+        infoText3.textContent = `Memorize the emojis!`;        timerDisplay.textContent = `Time Left: ${TIME_LIMIT_3}s`;
+        foundSets = 0;
+        flippedCards = [];
+        game3Started = false;
+        lockClicks = true;
+        gameGrid.innerHTML = '';
+
+        // build card DOMs (unshuffled)
+        cards = cardsData.map((d,i) => createCardElement3(d, i));
+        cards.forEach(function(card){
+          showEmoji3(card);
+          card.classList.remove('matched');
+          card.classList.remove('flipped');
+          gameGrid.appendChild(card);
+        });
+
+        // wait MEMO_TIME seconds
+        await new Promise(r => setTimeout(r, MEMO_TIME * 1000));
+
+        // hide all for play (beige)
+        cards.forEach(function(card){
+          showBeige3(card);
+          card.classList.remove('matched');
+          card.classList.remove('flipped');
+        });
+
+        // shuffle positions
+        shufflePositions3();
+
+        // ready to play
+        lockClicks = false;
+        game3Started = true;
+        infoText3.textContent = `Find all 3 sets! Sets found: 0 / 3`;
+        startTimer3();
+      }
+
+      // close modal for level3
+      closeModalBtn3.addEventListener('click', function(){
+        modal3Overlay.classList.remove('show');
+        // If final stage already shown, keep it; otherwise, if user closed modal before final shown, show final as well
+        // (we already trigger final on win above) - do nothing extra here.
+      });
+
+      // restart button when lose
+      restartLevel3Btn.addEventListener('click', function(){
+        restartLevel3Btn.style.display = 'none';
+        initGame3();
+      });
+
+      // expose reset for top-level selector
+      window.resetLevel3 = function(){
+        initGame3();
+      };
+
+      // Do not auto-start level 3 until user chooses it via ContinueTo3 or selector.
+      // initGame3 will be called by resetLevel3 when entering level 3.
+
+    })();
+
+    /* ============================================================
+       FINAL STAGE: hearts, click-to-20, letter typewriter, petals, music control
+       ============================================================ */
+    (function(){
+      const overlay = document.getElementById('finalStageOverlay');
+      const finalImage = document.getElementById('finalImage');
+      const finalLetterBox = document.getElementById('finalLetterBox');
+      const audioPlayFn = window.playGameMusic || function(){};
+
+      let clickCount = 0;
+      const CLICK_TARGET = 20;
+      let petalsInterval = null;
+      let heartsContainer = document.body; // hearts appended to body absolute to match coordinates
+
+      // show final stage overlay
+      window.showFinalStage = function(){
+        // show overlay
+        overlay.style.display = 'flex';
+        overlay.setAttribute('aria-hidden','false');
+        // try to play music on reveal (if user already interacted, music will play)
+        try { window.playGameMusic(); } catch(e){}
+        // start gentle petal spawning too (we'll start continuous once letter revealed too)
+        // but do not flood: spawn a few initial petals for ambiance
+        spawnPetalBurst(6);
+      };
+
+      // hide final stage overlay
+      function hideFinalStage(){
+        overlay.style.display = 'none';
+        overlay.setAttribute('aria-hidden','true');
+      }
+
+      // click handler for finalImage
+      finalImage.addEventListener('click', function(ev){
+        // spawn heart at click position (convert clientX/Y to within body)
+        const x = ev.clientX;
+        const y = ev.clientY;
+        spawnHeartAt(x, y);
+        clickCount++;
+        if(clickCount >= CLICK_TARGET){
+          // reveal letter and stop image
+          revealLetter();
+        }
+      });
+
+      // spawn heart effect
+      function spawnHeartAt(clientX, clientY){
+        const heart = document.createElement('div');
+        heart.className = 'heart-effect';
+        heart.textContent = '💗';
+        // position relative to viewport
+        heart.style.left = clientX + 'px';
+        heart.style.top = clientY + 'px';
+        heartsContainer.appendChild(heart);
+        // remove after animation
+        setTimeout(()=> {
+          if(heart && heart.parentElement) heart.parentElement.removeChild(heart);
+        }, 1000);
+      }
+
+      // typewriter letter content (English, from girl to boy)
+      const LETTER_TEXT =
+`It’s kind of funny how some people slowly become important in our lives without us even realizing when it happened. Rasanya baru kemarin ngobrol random sama lo, bercanda hal-hal ga jelas, tapi sekarang lo udah makin gede aja. Pelan-pelan keliatan juga lo lagi belajar banyak hal, ngerti banyak hal, and slowly figuring things out in your own way. It’s actually nice to see someone grow like that.
+
+Sometimes you’re a little chaotic, sometimes you’re funny without even trying, and sometimes you surprise people with how thoughtful you can be. Banyak momen random yang somehow jadi seru gara-gara lo, kadang dari jokes lo yang random, kadang dari cara lo cerita sesuatu yang sebenernya biasa aja tapi jadi seru. Even the small things about you can make the moment feel lighter. Maybe you don’t always realize it, but you do bring good energy to the people around you.
+
+Ke depan pasti bakal banyak hal baru yang lo temuin. Some moments will be fun, some will be confusing, and some might even feel a bit tough. But that’s just part of growing up. You don’t have to figure everything out all at once. Just take your time, learn from things, and keep moving forward. Life isn’t about having everything perfect, it’s more about enjoying the process while you grow. I hope you always stay curious, keep your kindness, and never lose the part of you that makes people smile
+
+Anyway, today is your day. Happy birthday, Ryder. Semoga tahun ini banyak good things datang ke hidup lo, lebih banyak cerita seru, lebih banyak tawa, and hopefully some of the things you’ve been wishing for slowly come true. Enjoy your day, have fun, and don’t forget to eat a lot of cake.`;
+
+      // reveal letter with typewriter, show scrollable box
+      function revealLetter(){
+        // prevent multiple reveal
+        if(finalLetterBox.style.display === 'block') return;
+        // hide the clickable image (so clicks no longer count)
+        finalImage.style.pointerEvents = 'none';
+        finalImage.style.opacity = '0.6';
+        // start typing
+        finalLetterBox.style.display = 'block';
+        // ensure box focused so user can scroll with keyboard
+        finalLetterBox.focus();
+        typeWriter(LETTER_TEXT, finalLetterBox, 60, function(){
+          // when finished typing, start continuous petals and a small celebratory burst
+          spawnPetalBurst(16);
+          if(!petalsInterval) {
+            petalsInterval = setInterval(()=> spawnPetalBurst(2), 500);
+          }
+        });
+      }
+
+      // typewriter that writes into element with a caret
+      function typeWriter(text, element, speed, onDone){
+        element.textContent = '';
+        const caret = document.createElement('span');
+        caret.className = 'typewriter-caret';
+        element.appendChild(caret);
+
+        let i = 0;
+        const actualSpeed = speed || 40;
+
+        function step(){
+          if(i < text.length){
+            // insert char before caret
+            caret.insertAdjacentText('beforebegin', text.charAt(i));
+            i++;
+            // auto-scroll to bottom as typing proceeds
+            element.scrollTop = element.scrollHeight;
+            setTimeout(step, actualSpeed);
+          } else {
+            // finished
+            if(typeof onDone === 'function') onDone();
+            // remove caret after brief pause
+            setTimeout(()=> { caret.remove(); }, 800);
+          }
+        }
+        step();
+      }
+
+      // spawn a single petal (emoji) with randomized horizontal start
+      function spawnPetal(){
+        const petal = document.createElement('div');
+        petal.className = 'petal';
+        petal.textContent = '🌸';
+        // random left 0..100vw
+        const left = Math.random() * 100;
+        petal.style.left = left + 'vw';
+        // randomized size & opacity
+        const size = 14 + Math.random() * 18;
+        petal.style.fontSize = size + 'px';
+        petal.style.opacity = (0.6 + Math.random() * 0.5).toString();
+        // randomized duration
+        const dur = 4 + Math.random() * 6;
+        petal.style.animationDuration = dur + 's';
+        // random horizontal drift via transform after some delay
+        document.body.appendChild(petal);
+        // cleanup after animation complete
+        setTimeout(()=> {
+          if(petal && petal.parentElement) petal.parentElement.removeChild(petal);
+        }, (dur * 1000) + 400);
+      }
+
+      // spawn multiple petals at once
+      function spawnPetalBurst(count){
+        for(let i=0;i<count;i++){
+          setTimeout(spawnPetal, Math.random() * 800);
+        }
+      }
+
+      // Expose control functions for debugging or future features
+      window.spawnPetal = spawnPetal;
+      window.spawnPetalBurst = spawnPetalBurst;
+
+    })();
+
+    /* ============================================================
+       Wire up top-level Continue/Restart/Close that belong to modals
+       ============================================================ */
+    (function(){
+      // Ensure level2 modal overlay element exists and is globally managed
+      const modal2Overlay = document.getElementById('modal2');
+      // modal1 and modal3 are already handled by inner modules
+      // Just a small guard in case close buttons are used from outside
+      const closeButtons = document.querySelectorAll('.btn-close');
+      closeButtons.forEach(function(btn){
+        btn.addEventListener('click', function(){
+          // find parent overlay and hide
+          const overlay = btn.closest('.modal-overlay');
+          if(overlay) overlay.classList.remove('show');
+        });
+      });
+
+      // Final safeguard: if user leaves and returns to level sections, ensure restart buttons are hidden unless in lose state
+      // This is a no-op default; our internal modules manage restart button visibility.
+
+    })();
+
+    /* ============================================================
+       END OF SCRIPT
+       ============================================================ */
+  </script>
+</body>
+</html>
